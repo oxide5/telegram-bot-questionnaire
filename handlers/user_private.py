@@ -121,7 +121,7 @@ async def about_me(message: types.Message):
             if username in users_dict:
                 await message.answer(f"Username : {username}.\nName : {users_dict[username]['name']}.\nAge : {users_dict[username]['age']}.\nPurpose : {users_dict[username]['purpose']}")
     except FileNotFoundError:
-        print("Файл users.json не найден")
+        print("User wasnt found")
     return None
 
     
