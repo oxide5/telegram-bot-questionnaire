@@ -20,5 +20,5 @@ A lightweight and efficient Telegram bot built with **Python** and **aiogram 3.x
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git](https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git)
-   cd YOUR_REPO_NAME
+   git clone https://github.com/oxide5/telegram-bot-questionnaire.git
+   cd telegram-bot-questionnaire
