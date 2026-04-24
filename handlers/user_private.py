@@ -1,4 +1,4 @@
-import json
+import sqlite3 as sq
 from aiogram import F, types, Router, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton
@@ -11,7 +11,6 @@ from dotenv import find_dotenv, load_dotenv
 ADMIN_ID = os.getenv("ADMIN_ID")
 
 ro = Router()
-info = []
 
 
 
@@ -68,38 +67,49 @@ async def get_purpose(message: types.Message, state: FSMContext, bot: Bot):
     
     data = await state.get_data()
     
-    username = message.from_user.username or "NoUsername"
+    user_id = message.from_user.id
     
     
-
     response_text = (
         f"The questionnaire is completed!\n"
-        f"Account: @{username}\n"
+        f"Account: {user_id}\n"
         f"Name: {data['name']}\n"
         f"Age: {data['age']}\n"
         f"Purpose: {data['purpose']}"
     )
-    add_info = {'user': 
-                {f'@{username}':{
-        'name' : f"{data['name']}",
-        'age' : f"{data['age']}",
-        'purpose' : f"{data['purpose']}"
-    }}}
-    
-    info.append(add_info) 
 
-    await bot.send_message(chat_id=ADMIN_ID, 
+    await bot.send_message(chat_id=ADMIN_ID,   #send to admin
         text = 
-        f"Account: @{username}\n"
+        f"Account: {user_id}\n"
         f"Name: {data['name']}\n"
         f"Age: {data['age']}\n"
         f"Purpose: {data['purpose']}")
         
 
-    with open('data.json', 'r+' , encoding='utf-8') as f:
-        json.dump(info, f, indent=4, ensure_ascii=False)
     
-    await message.answer(response_text)
+    with sq.connect('users.db') as con:
+        cur = con.cursor()
+        cur.execute("""
+CREATE TABLE IF NOT EXISTS users_profile(
+                    user_id INTEGER,
+                    name TEXT,
+                    age INTEGER,
+                    purpose TEXT
+                    )
+                    """)
+        cur.execute(f"SELECT * FROM users_profile WHERE user_id == ?", (user_id,))
+        user = cur.fetchone()
+        if user:
+            change = "UPDATE users_profile SET name = ?, age = ?, purpose = ?"
+            cur.execute(change, (data["name"], data['age'], data['purpose']))
+            await message.answer('Your info was changed')
+            await message.answer(response_text)
+            con.commit()
+        else:
+            data_info = "INSERT INTO users_profile VALUES(?, ?, ?, ?)"
+            cur.execute(data_info, (user_id, data['name'], data['age'], data['purpose']))
+            await message.answer(response_text)
+            con.commit()
 
     await state.clear()
 
@@ -112,18 +122,15 @@ async def info_user(message:types.Message):
 
 @ro.message(Command('about_me'))
 async def about_me(message: types.Message):
-    username = "@" + message.from_user.username
-    try:
-        with open('data.json', 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        for item in data:
-            users_dict = item.get("user", {})
-            if username in users_dict:
-                await message.answer(f"Username : {username}.\nName : {users_dict[username]['name']}.\nAge : {users_dict[username]['age']}.\nPurpose : {users_dict[username]['purpose']}")
-    except FileNotFoundError:
-        print("Файл users.json не найден")
-    return None
-
-    
-    # await message.answer(message.text) #
-    # await message.reply(message.text) #отвечает на сообщение пользователя
+    user_id = message.from_user.id
+    with sq.connect('users.db') as con:
+        cur = con.cursor()
+        cur.execute(f"SELECT * FROM users_profile WHERE user_id == ?", (user_id,))
+        user = cur.fetchone()
+        if user:
+            name = user[1]
+            age = user[2]
+            purpose = user[3]
+            await message.answer(f"Username : {user_id}.\nName : {name}.\nAge : {age}.\nPurpose : {purpose}")
+        else:
+            await message.answer("Sorry but we havent found")
