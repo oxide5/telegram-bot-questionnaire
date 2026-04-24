@@ -33,9 +33,13 @@ async def start_survey(message: types.Message, state: FSMContext):
 
 @ro.message(Profile.name)
 async def get_name(message: types.Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await message.answer(f"Nice to meet you, {message.text}! Now enter your age:", reply_markup=reply.keyboard_name )
-    await state.set_state(Profile.age)
+    if message.photo or message.text.isdigit():
+        await message.answer("You can't add photo or numbers as your name")
+        return
+    else:
+        await state.update_data(name=message.text)
+        await message.answer(f"Nice to meet you, {message.text}! Now enter your age:", reply_markup=reply.keyboard_name )
+        await state.set_state(Profile.age)
 
 @ro.callback_query(F.data == "back_to_name")
 async def back_to_step1(callback: CallbackQuery, state: FSMContext):    
@@ -44,7 +48,7 @@ async def back_to_step1(callback: CallbackQuery, state: FSMContext):
 
 @ro.message(Profile.age)
 async def get_age(message: types.Message, state: FSMContext):
-    if not message.text.isdigit() and not message.text:
+    if not message.text.isdigit() or message.photo:
         await message.answer("Please enter only numbers")
         return 
     age = int(message.text)
@@ -63,55 +67,59 @@ async def back_to_step2(callback: CallbackQuery, state: FSMContext):
 
 @ro.message(Profile.purpose)
 async def get_purpose(message: types.Message, state: FSMContext, bot: Bot):
-    await state.update_data(purpose=message.text)
-    
-    data = await state.get_data()
-    
-    user_id = message.from_user.id
-    
-    
-    response_text = (
-        f"The questionnaire is completed!\n"
-        f"Account: {user_id}\n"
-        f"Name: {data['name']}\n"
-        f"Age: {data['age']}\n"
-        f"Purpose: {data['purpose']}"
-    )
+    if message.photo or message.text.isdigit():
+        await message.answer("You can't add photo or numbers as your name")
+        return
+    else:
+        await state.update_data(purpose=message.text)
 
-    await bot.send_message(chat_id=ADMIN_ID,   #send to admin
-        text = 
-        f"Account: {user_id}\n"
-        f"Name: {data['name']}\n"
-        f"Age: {data['age']}\n"
-        f"Purpose: {data['purpose']}")
-        
+        data = await state.get_data()
 
-    
-    with sq.connect('users.db') as con:
-        cur = con.cursor()
-        cur.execute("""
-CREATE TABLE IF NOT EXISTS users_profile(
-                    user_id INTEGER,
-                    name TEXT,
-                    age INTEGER,
-                    purpose TEXT
-                    )
-                    """)
-        cur.execute(f"SELECT * FROM users_profile WHERE user_id == ?", (user_id,))
-        user = cur.fetchone()
-        if user:
-            change = "UPDATE users_profile SET name = ?, age = ?, purpose = ?"
-            cur.execute(change, (data["name"], data['age'], data['purpose']))
-            await message.answer('Your info was changed')
-            await message.answer(response_text)
-            con.commit()
-        else:
-            data_info = "INSERT INTO users_profile VALUES(?, ?, ?, ?)"
-            cur.execute(data_info, (user_id, data['name'], data['age'], data['purpose']))
-            await message.answer(response_text)
-            con.commit()
+        user_id = message.from_user.id
 
-    await state.clear()
+
+        response_text = (
+            f"The questionnaire is completed!\n"
+            f"Account: {user_id}\n"
+            f"Name: {data['name']}\n"
+            f"Age: {data['age']}\n"
+            f"Purpose: {data['purpose']}"
+        )
+
+        await bot.send_message(chat_id=ADMIN_ID,   #send to admin
+            text = 
+            f"Account: {user_id}\n"
+            f"Name: {data['name']}\n"
+            f"Age: {data['age']}\n"
+            f"Purpose: {data['purpose']}")
+
+
+
+        with sq.connect('users.db') as con:
+            cur = con.cursor()
+            cur.execute("""
+    CREATE TABLE IF NOT EXISTS users_profile(
+                        user_id INTEGER,
+                        name TEXT,
+                        age INTEGER,
+                        purpose TEXT
+                        )
+                        """)
+            cur.execute(f"SELECT * FROM users_profile WHERE user_id == ?", (user_id,))
+            user = cur.fetchone()
+            if user:
+                change = "UPDATE users_profile SET name = ?, age = ?, purpose = ? WHERE user_id = ?"
+                cur.execute(change, (data["name"], data['age'], data['purpose'], user_id))
+                await message.answer('Your info was changed')
+                await message.answer(response_text)
+                con.commit()
+            else:
+                data_info = "INSERT INTO users_profile VALUES(?, ?, ?, ?)"
+                cur.execute(data_info, (user_id, data['name'], data['age'], data['purpose']))
+                await message.answer(response_text)
+                con.commit()
+
+        await state.clear()
 
 
 
